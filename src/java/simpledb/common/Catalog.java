@@ -11,6 +11,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * The Catalog keeps track of all available tables in the database and their
@@ -23,12 +24,45 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
+    private ConcurrentMap<Integer,Table> hashTable;
+
+
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
         // some code goes here
+        hashTable = new ConcurrentHashMap<Integer,Table>();
+    }
+
+    private static class Table{
+        public final DbFile dbFile;
+        public final String tableName;
+        public final String  pk;//表的主键名
+
+
+        @Override
+        public boolean equals(Object obj) {
+            Table that =  (Table) obj;
+            return dbFile.getId() == that.dbFile.getId();
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+
+        public Table(DbFile file, String name, String pkeyField){
+            dbFile = file;
+            tableName = name;
+            pk = pkeyField;
+        }
+
+        @Override
+        public String toString() {
+            return tableName + "(" + dbFile.getId() + ":" + pk +")";
+        }
     }
 
     /**
@@ -42,6 +76,17 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+        //重复判断，对于已经存在的表名，如果再add的话就修改他的id号。
+        for(Integer keyId:hashTable.keySet()){
+            if(hashTable.get(keyId).tableName.equals(name)){
+                //如果以前建立过同名表则不是put新表，删除原表，创建新表，返回新id。
+                hashTable.remove(keyId);
+
+                hashTable.put(file.getId(),new Table(file,name,pkeyField));
+            }
+        }
+        hashTable.put(file.getId(), new Table(file,name,pkeyField));
+
     }
 
     public void addTable(DbFile file, String name) {
@@ -65,7 +110,16 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        //根据表名称获取表id
+        for(Integer keyId:hashTable.keySet()){
+            if(hashTable.get(keyId).tableName==null)
+                throw new NoSuchElementException();
+            if(hashTable.get(keyId).tableName.equals(name)){
+                return keyId;
+            }
+        }
+
+        throw new NoSuchElementException();
     }
 
     /**
@@ -76,7 +130,8 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        //根据表id获取表的元数据
+        return hashTable.get(tableid).dbFile.getTupleDesc();
     }
 
     /**
@@ -87,27 +142,28 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        return hashTable.get(tableid).dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
-        return null;
+        return hashTable.get(tableid).pk;
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+        return hashTable.keySet().iterator();
     }
 
     public String getTableName(int id) {
         // some code goes here
-        return null;
+        return hashTable.get(id).tableName;
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+        hashTable.clear();
     }
     
     /**
